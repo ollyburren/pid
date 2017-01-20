@@ -11,23 +11,25 @@ setnames(id.file,make.names(names(id.file)))
 canvas<-mfiles[grepl("canvas",mfiles)]
 ## process canvas
 processCANVAS<-function(f){
-	DT<-fread(canvas[1])
+	DT<-fread(f)
 	DT<-subset(DT,ILMN_ID %in% id.file$Illumina.ID)
 	DT$id<-1:nrow(DT)
-	with(DT,GRanges(seqnames=Rle(CANVAS_CHROM),ranges=IRanges(start=CANVAS_START,end=CANVAS_END),id=id))
+	DT
 }
 
 all.canvas<-lapply(canvas,processCANVAS)
 names(all.canvas)<-gsub('\\.txt','',basename(canvas))
 
 load(file.path(data.dir,'hnisz_SE_annotation.RData'))
-filterAndAddSEPCHiC<-function(m,sv.gr){
+filterAndAddSEPCHiC<-function(m,sv.gr,sv.dt){
 ##load the pchic SE overlaps merge.results.se
 	ol<-as.matrix(findOverlaps(m$se.gr,sv.gr))
-	cbind(DT[ol[,2],],m[ol[,1],c('ensg','name','pchic','se.tissue')])
+	cbind(sv.dt[ol[,2],],m[ol[,1],c('ensg','name','pchic','se.tissue')])
 }
-results.canvas<-lapply(all.canvas,function(sv.gr){
-	filt.canvas<-lapply(merge.results.se,filterAndAddSEPCHiC,sv.gr=sv.gr)
+
+results.canvas<-lapply(all.canvas,function(sv){
+	sv.gr<-with(sv,GRanges(seqnames=Rle(CANVAS_CHROM),ranges=IRanges(start=CANVAS_START,end=CANVAS_END),id=id))
+	filt.canvas<-lapply(merge.results.se,function(mse)filterAndAddSEPCHiC(mse,sv.gr,sv))
 })
 
 ## TODO 
@@ -36,7 +38,14 @@ results.canvas<-lapply(all.canvas,function(sv.gr){
 ## what is the background are SV enriched in PID cases vs the other cohorts.
 ## how much of SE is duplicated/deleted - what is the GT is it het or hom. what about qualities what about gene deletions as the mmore parsimonious explanation
 
-
-
+## prototype downstream analysis on non exonic loss.
+ft<-'canvascalls_allsamples_loss_20161012.ann.filt'
+all.se.ft<-results.canvas[[ft]]
+se.t.types<-sapply(merge.results.se,function(n) sub("\\.csv","",basename(unique(n$se.tissue))))
+rows<-cbind(se.t.types,sapply(all.se.ft,nrow))
+peeps<-cbind(se.t.types,sapply(all.se.ft,function(x) paste(unique(x$BRIDGE_ID),collapse=',')))
+genes<-cbind(se.t.types,sapply(all.se.ft,function(x) paste(unique(sprintf("%s(%s)",x$name,x$BRIDGE_ID)),collapse=',')))
+## all genes
+sapply(all.se.ft,'[[','name')
 
 manta<-mfiles[grepl("manta",mfiles)]
