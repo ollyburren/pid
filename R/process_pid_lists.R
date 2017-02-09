@@ -49,3 +49,5 @@ pid.genes.interaction<-all.pid[all.pid$ensembl_gene_id %in% chic.pid$ensg,]$ense
 idx<-which(all.pid$ensembl_gene_id %in% pid.genes.interaction)
 pid.genes.no.interaction<-all.pid[-idx,]
 save(chic.pid,file=file.path(data.dir,'pid.chic.RData'))
+
+## what about all genes rather than just PID ? Can just use chic<-fread(file.path(data.dir,"merged_samples_12Apr2015_full_denorm_bait2baits_e75.tab"))

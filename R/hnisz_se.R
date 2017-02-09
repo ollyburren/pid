@@ -1,6 +1,7 @@
 library(data.table)
 library(GenomicRanges)
 
+chic<-fread(file.path(data.dir,"merged_samples_12Apr2015_full_denorm_bait2baits_e75.tab"))
 data.dir<-'/scratch/ob219/pid'
 mfiles<-list.files(path=file.path(data.dir,'hnisz'),pattern='*.csv',full.names = TRUE)
 ## select CD files first off
