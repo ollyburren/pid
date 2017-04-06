@@ -2,7 +2,7 @@ library(data.table)
 library(GenomicRanges)
 library(snpStats)
 
-tabix_bin<-'/home/ob219/bin/htslib/tabix'
+bcftools_bin<-'~/bin/bcftools-1.4/bcftools'
 
 ## format of this file is that each variant has much data associated with it.
 ## these routines allow the deconstruction of the annotation data
@@ -50,45 +50,50 @@ createInfoDT<-function(str){
 }
 
 
-region<-'17:76126851-76139049'
-individuals<-c('F000953','F008870')
-args<-list(egrep="^#|HGMD_CLASS=DM[^?]|splice|frame|start|stop|missense")
 
+## this is prototype command for bcftools
+## finish converting to BCFTools 
+## look at genes outside of the PID list
+## reread the bioarxiv paper on reg variation
+## reread BeviMed paper.
 getPossDamSNPs<-function(region,individuals,...){
+	args<-list(...)
 	chr<-sub("([^:]+):.*","\\1",region)
 	start<-as.numeric(sub("[^:]+:([^\\-]+)\\-.*","\\1",region))
 	end<-as.numeric(sub("[^:]+:[^\\-]+\\-(.*)","\\1",region))
+	ind<-paste(individuals,sep=',',collapse=',')
 	#args<-list(...)	
 	## load in the merged vcf file.
 	vcf.dir<-'/scratch/WGS10K/data/release/latest/merged-vcf/no_hgmd/gnomad/'
 	data.dir<-'/scratch/ob219/pid/'
-	## load in the file of bridge pid cases
-	id.file<-fread(file.path(data.dir,'BRIDGE-PID_20161012release_846_index_cases.csv'))
-	setnames(id.file,make.names(names(id.file)))
-	#fname<-'chr%s_agg3_dedup_vep.vcf.gz'
-	fname<-'chr%s_agg3_dedup_vep.vcf.gz'
+	fname<-'chr%s_agg3_dedup_vep_gnomad.bcf'
 	vf<-file.path(vcf.dir,sprintf(fname,chr))
-	my.pipe<-pipe(paste(tabix_bin,'-H',vf,region))
+	header_cmd<-sprintf("%s view -s %s --header-only %s",bcftools_bin,ind,vf)
+	my.pipe<-pipe(header_cmd)
 	header<-tail(scan(my.pipe,what=character(),sep="\n",quiet=TRUE),n=1)
 	close(my.pipe)
 	cnames<-unlist(strsplit(header,"\t"))
-	## variant annotation is another thing to capture
-	my.pipe<-pipe(paste(tabix_bin,'-H',vf,"| egrep  '^##INFO=<ID=ANN' | sed -e s'/^.*Format: \\([^\\][^\\]*\\)\\.*/\\1/'"))
+	## should be able to do in one pass but this is so quick !
+	my.pipe<-pipe(sprintf("%s | egrep -e '%s' | sed -e s'%s'",header_cmd,'^##INFO=<ID=ANN','/^.*Format: \\([^\\][^\\]*\\)\\.*/\\1/'))
+	## variant annotation header is another thing to capture
 	vep<-scan(my.pipe,what=character(),sep="\n",quiet=TRUE)
+	close(my.pipe)
 	vep<-gsub('"','',vep)
 	vep.header<-strsplit(vep,'\\|')[[1]]
-	cols.want<-paste(c(1:10,which(cnames %in% id.file$WGS.ID)),sep=",",collapse=",")
-	cmd_mod<-sprintf("| cut -f%s",cols.want)
 	if("egrep" %in% names(args)){
-		egrep_cmd<-sprintf('| egrep "%s"',args[['egrep']])
-		cmd_mod<-paste(egrep_cmd,cmd_mod)
+		body_cmd<-sprintf("%s view %s -r %s -s %s -Ov -H | egrep -e '%s'",bcftools_bin,vf,region,ind,args[['egrep']])
+	}else{
+		body_cmd<-sprintf("%s view %s -r %s -s %s -Ov -H",bcftools_bin,vf,region,ind)
 	}
-	## this is slow reading vcf into R
-	overall_cmd<-paste(tabix_bin,vf,region,cmd_mod)
-	message(overall_cmd)
-	tmp<-as.data.frame(fread(overall_cmd,sep="\t",header=FALSE,stringsAsFactors=FALSE))
-	colnames(tmp)<-cnames[c(1:10,which(cnames %in% id.file$WGS.ID))]
+	message(body_cmd)
+	tmp<-as.data.frame(fread(body_cmd,sep="\t",header=FALSE,stringsAsFactors=FALSE))
+	colnames(tmp)<-cnames
 	gt<-tmp[,10:ncol(tmp)]
+	if(length(individuals)==1){
+		## add dummy individual which we can remove at the end
+		gt<-cbind(gt,DUMMY=rep('0/0',length(gt)))
+		colnames(gt)<-c(individuals,'DUMMY')
+	}
 	if(nrow(gt)==0)
 	  return(NA)
 	info<-tmp[,1:9]
@@ -100,11 +105,13 @@ getPossDamSNPs<-function(region,individuals,...){
 	rownames(sm)<-colnames(gt)
 	sm<-new("SnpMatrix", sm)
 	info.dt<-createInfoDT(info$INFO)
+	## possibly only interested in GNOMAD_AF to start with
 	obj<-list(map=info,gt=sm,info=info.dt)
 	#get VEP stuff - note that we get multiple entries per SNP.
 	vep<-processVEP(obj$info$ANN,vep.header)
 	## get SNPs that have a high chance to mess up the protein
-	interesting.vep<-vep[grep(args$egrep,vep$Consequence),c('Consequence','CADD_PHRED','SIFT','aaalt','aaref','PolyPhen','EXON','ExAC_AF','row'),with=FALSE]
+	interesting.vep<-vep[grep(args$egrep,vep$Consequence),c('SYMBOL','Gene','BIOTYPE','Existing_variation','Consequence','CADD_PHRED','SIFT','Amino_acids','PolyPhen','EXON','row'),with=FALSE]
+	## get info on GNOMAD allele freq
 	#c.idx<-as.numeric(unique(subset(vep,IMPACT %in% c('HIGH','MODERATE') & CANONICAL=='YES' & BIOTYPE=='protein_coding')$row))
 	## use snpMatrix to find out which ones have variation
 	#csum<-col.summary(obj$gt[,c.idx])
@@ -118,17 +125,16 @@ getPossDamSNPs<-function(region,individuals,...){
 	}else{
 		gt.res$id<-rownames(gt.res)
 	}
-	merge(gt.res,interesting.vep,by.x='id',by.y='row')
+	## GNOMAD AF
+	gaf<-data.frame(id=idx,GNOMAD_AF=info.dt[idx,]$GNOMAD_AF)
+	tmp<-merge(gt.res,interesting.vep,by.x='id',by.y='row')
+	merge(tmp,gaf,by.x='id',by.y='id')
 }
 
-## get a region that we are interested in 
-## get bridge identifiers that we are intested in
-#region<-'1:114356433-114414381'
-## load in the list of genes we wish to check
+
 (load("/scratch/ob219/pid/loss_merge_genes/pid.se.RData"))
 ## need to use biomart to get gene locations 
 library(biomaRt)
-
 mart <- useMart('ENSEMBL_MART_ENSEMBL',host="grch37.ensembl.org")
 ensembl.gene <- useDataset("hsapiens_gene_ensembl",mart=mart)
 
@@ -142,20 +148,15 @@ setkey(DT,ensg)
 setkey(out.tab,p.ensg)
 ot<-out.tab[DT]
 by.reg<-split(ot$sample,ot$region)
-
-#for(reg in names(by.reg)){
-#	message(sprintf("Doing %s",reg))
-#	ind<-by.reg[[reg]]
-#	getPossDamSNPs(reg,ind)
-#}
 out<-lapply(seq_along(by.reg),function(x){
 	reg<-names(by.reg)[x]
 	message(sprintf("Doing %s",reg))
         ind<-by.reg[[reg]]
-        getPossDamSNPs(reg,ind,egrep="^#|HGMD_CLASS=DM[^?]|splice|frame|start|stop|missense")
+        tmp<-getPossDamSNPs(reg,ind,egrep="^#|HGMD_CLASS=DM[^?]|splice|frame|start|stop|missense")
 })
 
 names(out)<-names(by.reg)
+
 ## TMC6/8 potentially interesting 
 ## TCF6
 ## PLCG2
