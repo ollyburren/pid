@@ -18,6 +18,7 @@ processVEP<-function(v,vep.header){
 	ret
 }
 
+
 createInfoDT<-function(str){
 	blah<-lapply(strsplit(str,";",fixed=TRUE),function(x) {
 		tmp<-strsplit(x,"=",fixed=TRUE)
@@ -27,7 +28,7 @@ createInfoDT<-function(str){
 		ret
 	})
 	## get a list of possible headers
-	pos.header<-unique(do.call('c',sapply(blah,names)))
+	pos.header<-unique(do.call('c',lapply(blah,names)))
 	tlist<-list()
 	for(n in pos.header){
 		tmp<-sapply(blah,'[[',n)
@@ -49,15 +50,20 @@ createInfoDT<-function(str){
 	tlist
 }
 
+robustDTfread<-function(cmd){
+	tryCatch(as.data.frame(fread(cmd,sep="\t",header=FALSE,stringsAsFactors=FALSE)),warning=function(w) {print(sprintf("Warning=%s fread CMD=%s",w,cmd))},error=function(e){print(sprintf("Error=%s fread CMD=%s",e,cmd));return(NA)})
+}
 
-
+robustDTfread<-function(cmd){
+	tryCatch(as.data.frame(fread(cmd,sep="\t",header=FALSE,stringsAsFactors=FALSE)),error=function(e){print(sprintf("Error=%s fread CMD=%s",e,cmd));return(NA)})
+}
 ## this is prototype command for bcftools
 ## finish converting to BCFTools 
 ## look at genes outside of the PID list
 ## reread the bioarxiv paper on reg variation
 ## reread BeviMed paper.
 getPossDamSNPs<-function(region,individuals,...){
-	args<-list(...)
+	ar<-list(...)
 	chr<-sub("([^:]+):.*","\\1",region)
 	start<-as.numeric(sub("[^:]+:([^\\-]+)\\-.*","\\1",region))
 	end<-as.numeric(sub("[^:]+:[^\\-]+\\-(.*)","\\1",region))
@@ -80,13 +86,16 @@ getPossDamSNPs<-function(region,individuals,...){
 	close(my.pipe)
 	vep<-gsub('"','',vep)
 	vep.header<-strsplit(vep,'\\|')[[1]]
-	if("egrep" %in% names(args)){
-		body_cmd<-sprintf("%s view %s -r %s -s %s -Ov -H | egrep -e '%s'",bcftools_bin,vf,region,ind,args[['egrep']])
+	if("egrep" %in% names(ar)){
+		body_cmd<-sprintf("%s view %s -r %s -s %s -Ov -H | egrep -e '%s'",bcftools_bin,vf,region,ind,ar[['egrep']])
 	}else{
 		body_cmd<-sprintf("%s view %s -r %s -s %s -Ov -H",bcftools_bin,vf,region,ind)
 	}
 	message(body_cmd)
-	tmp<-as.data.frame(fread(body_cmd,sep="\t",header=FALSE,stringsAsFactors=FALSE))
+	#tmp<-as.data.frame(fread(body_cmd,sep="\t",header=FALSE,stringsAsFactors=FALSE))
+	tmp<-robustDTfread(body_cmd)
+	if(is.na(tmp))
+		return(NA)
 	colnames(tmp)<-cnames
 	gt<-tmp[,10:ncol(tmp)]
 	if(length(individuals)==1){
@@ -98,9 +107,13 @@ getPossDamSNPs<-function(region,individuals,...){
 	  return(NA)
 	info<-tmp[,1:9]
 	sm<-apply(gt,1,function(x) sub("0\\/0.*","1",x))
-	sm<-apply(sm,1,function(x) sub("(0\\/1).*|(1\\/0).*","2",x))
-	sm<-apply(sm,1,function(x) sub("1\\/1.*","3",x))
+	sm<-as.matrix(apply(sm,1,function(x) sub("(0\\/1).*|(1\\/0).*","2",x)))
+	sm<-as.matrix(apply(sm,1,function(x) sub("1\\/1.*","3",x)))
 	sm<-t(apply(sm,1,function(x) as.raw(sub("[0-9]\\/[0-9]","0",x))))
+	## single snps don't need to be transposed
+	message(length(colnames(sm)))
+	if(length(colnames(sm))!=0)
+		sm<-t(sm)
 	colnames(sm)<-1:nrow(info)
 	rownames(sm)<-colnames(gt)
 	sm<-new("SnpMatrix", sm)
@@ -110,7 +123,7 @@ getPossDamSNPs<-function(region,individuals,...){
 	#get VEP stuff - note that we get multiple entries per SNP.
 	vep<-processVEP(obj$info$ANN,vep.header)
 	## get SNPs that have a high chance to mess up the protein
-	interesting.vep<-vep[grep(args$egrep,vep$Consequence),c('SYMBOL','Gene','BIOTYPE','Existing_variation','Consequence','CADD_PHRED','SIFT','Amino_acids','PolyPhen','EXON','row'),with=FALSE]
+	interesting.vep<-vep[grep(ar$egrep,vep$Consequence),c('SYMBOL','Gene','BIOTYPE','Existing_variation','Consequence','CADD_PHRED','SIFT','Amino_acids','PolyPhen','EXON','row'),with=FALSE]
 	## get info on GNOMAD allele freq
 	#c.idx<-as.numeric(unique(subset(vep,IMPACT %in% c('HIGH','MODERATE') & CANONICAL=='YES' & BIOTYPE=='protein_coding')$row))
 	## use snpMatrix to find out which ones have variation
@@ -132,7 +145,7 @@ getPossDamSNPs<-function(region,individuals,...){
 }
 
 
-(load("/scratch/ob219/pid/loss_merge_genes/pid.se.RData"))
+(load("/scratch/ob219/pid/loss_merge_genes/all.se.RData"))
 ## need to use biomart to get gene locations 
 library(biomaRt)
 mart <- useMart('ENSEMBL_MART_ENSEMBL',host="grch37.ensembl.org")
@@ -162,4 +175,27 @@ names(out)<-names(by.reg)
 ## PLCG2
 ## NOD2
 ## look in more detail next week
-save(out,file="/scratch/ob219/pid/loss_merge_genes/pid_se_possible_lof.RData")
+#save(out,file="/scratch/ob219/pid/loss_merge_genes/all_se_possible_lof.RData")
+load("/scratch/ob219/pid/loss_merge_genes/all_se_possible_lof.RData")
+
+## remove those for which there are no variants
+
+out.f<-out[sapply(out,is.data.frame)]
+## only look at protein_coding genes for time being
+bl<-sapply(out.f,function(x){
+	if(any(x$BIOTYPE=='protein_coding'))
+		return(TRUE)
+	return(FALSE)
+})
+out.f<-out.f[bl]
+## next get those with CADD scores above 15
+out.f<-sapply(out.f,function(x){
+	x$CADD_PHRED<-as.numeric(x$CADD_PHRED)
+	x$GNOMAD_AF<-as.numeric(x$GNOMAD_AF)
+	x[!is.na(x$CADD_PHRED) & x$CADD_PHRED>15 & (x$GNOMAD_AF<0.05 | is.na(x$GNOMAD_AF)),]
+})
+out.f<-out.f[sapply(out.f,nrow)!=0]
+unique(do.call('c',lapply(out.f,function(x) unique(x$SYMBOL))))
+rbindlist(out.f)
+## ok fi
+

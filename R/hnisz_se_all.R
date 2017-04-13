@@ -40,20 +40,49 @@ mergeSEandPCHiC<-function(f,ti,pchic,se=1){
 	tidx<-which(rowSums(do.call("cbind",lapply(tissues,function(t){
 		pchic[[t]]>pchic.cutoff
 	})))>0)
-	pchic.gr<-with(pchic[tidx,],GRanges(seqnames=Rle(oeChr),ranges=IRanges(start=oeStart,end=oeEnd),id=oeID,ensg=ensg,name=name,pchic=ti,se.tissue=gsub('\\.csv.','',f)))
+	pchic.gr<-with(pchic[tidx,],GRanges(seqnames=Rle(oeChr),ranges=IRanges(start=oeStart,end=oeEnd),id=oeID,ensg=ensg,biotype=biotype,name=name,pchic=ti,se.tissue=gsub('\\.csv.','',f)))
 	mergeByOverlaps(se.gr,pchic.gr)
 }
+
+## simplify
+simples<-function(sel){
+	cl<-do.call('rbind',sel)
+	cl<-as.data.frame(cl[,c('se.gr','id','id.1','ensg','biotype','name','pchic','se.tissue')])
+	DT<-data.table(cl)
+	DT[,uid:=paste(sub("\\.csv","",basename(se.tissue)),id,sep=':')]
+	## unique genes by uid
+	setkeyv(DT,c('uid','ensg'))
+	gb<-unique(DT)[,c('uid','ensg','biotype','name'),with=FALSE]
+	all.pid<-fread(file.path(data.dir,'all.pid.genes.csv'))
+	gb$pid.gene<-as.numeric(gb$ensg %in% all.pid$ensembl_gene_id)
+	setkey(gb,uid)
+	cgb<-gb[,list(p.ensg=paste(ensg,sep=',',collapse=','),
+		p.names=paste(name,sep=',',collapse=','),
+		p.bt=paste(biotype,sep=',',collapse=','),
+		p.known.pid=paste(pid.gene,sep=',',collapse=',')),by=uid]
+	setkey(DT,uid)
+	prey.count<-DT[,list(unique.prey=length(unique(id.1))),by=uid]
+	stub<-unique(DT)[,c('se.gr.seqnames','se.gr.start','se.gr.end','uid'),with=FALSE]
+	out<-cgb[stub]
+	setkey(prey.count,uid)
+	out<-prey.count[out]
+
+}
+
 
 merge.results.se<-lapply(1:nrow(hnisz),function(i){
 	message(hnisz[i,]$pchic.tissue)
 	mergeSEandPCHiC(hnisz[i,]$f,hnisz[i,]$pchic.tissue,pchic)
+	
 })
-save(merge.results.se,file=file.path(data.dir,'hnisz_SE_annotation_all.RData'))
+merge.results.se<-simples(merge.results.se)
+save(merge.results.se,file=file.path(data.dir,'hnisz_SE_annotation_all_merged.RData'))
 merge.results.non.se<-lapply(1:nrow(hnisz),function(i){
 	message(hnisz[i,]$pchic.tissue)
 	mergeSEandPCHiC(hnisz[i,]$f,hnisz[i,]$pchic.tissue,pchic,se=0)
 })
-save(merge.results.non.se,file=file.path(data.dir,'hnisz_Non_SE_annotation_all.RData'))
-hnisz$se.count<-sapply(merge.results.se,nrow)
-hnisz$non.se.count<-sapply(merge.results.non.se,nrow)
-write.table(hnisz,file=file.path(data.dir,'hnisz_results_all.csv'),sep=',',row.names=FALSE,quote=FALSE)
+merge.results.non.se<-simples(merge.results.non.se)
+save(merge.results.non.se,file=file.path(data.dir,'hnisz_Non_SE_annotation_all_merged.RData'))
+#hnisz$se.count<-sapply(merge.results.se,nrow)
+#hnisz$non.se.count<-sapply(merge.results.non.se,nrow)
+#write.table(hnisz,file=file.path(data.dir,'hnisz_results_all.csv'),sep=',',row.names=FALSE,quote=FALSE)

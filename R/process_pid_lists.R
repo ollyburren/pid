@@ -36,6 +36,7 @@ all<-unique(data.table(all[,c('ensembl_gene_id','external_gene_name')],key='ense
 all$pid.name<-all$external_gene_name
 manual<-data.table(ensembl_gene_id=c('ENSG00000093072','ENSG00000177084',NA),external_gene_name=c('CECR1','POLE',NA),pid.name=c('ADA2','POLE1','MHS6'))
 all.pid<-rbind(all,manual)
+write.table(all.pid,file=file.path(data.dir,'all.pid.genes.csv'),sep=',',quote=FALSE,row.names=FALSE)
 ## are all PID genes found ab negative
 ab.def<-fread(file.path(data.dir,'ab_def_genes.csv'),select=1:4)
 ab.def$ENSG %in% all.pid$ensembl_gene_id

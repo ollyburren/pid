@@ -53,5 +53,5 @@ gper<-data.table(gene=sub("^([^\\(]+).*","\\1",gene_peeps),person=sub("^[^\\(]+\
 library(ggplot2)
 gper$person<-factor(gper$person,levels=names(sort(table(gper$person),decreasing=TRUE)))
 length(unique(gper$person))
-ggplot(gper,aes(x=person)) + geom_bar() + theme_bw() + theme(axis.text.x=element_text(angle = -90, hjust = 0))
-length(unique(gper$gene))
+#ggplot(gper,aes(x=person)) + geom_bar() + theme_bw() + theme(axis.text.x=element_text(angle = -90, hjust = 0))
+#length(unique(gper$gene))
