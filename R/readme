@@ -1,0 +1,14 @@
+First we get a list of all the PID individuals with a CNV with allele freq<0.001 that het or hom takes out an enhancer cluster that links back to a gene in Javierre et al. 
+
+Give the stats for this
+Homs
+Duplicates across different individuals - see R markdown for more information - perhaps focus on a few that look interesting.
+
+
+We next take all events and look to see if the event forms a compound het with a lof allele in the target gene CADD_PHRED score > 15 and GNOMAD_AF < 0.05
+
+Show table
+
+Finally CHET with promoters 
+
+Fin

@@ -37,8 +37,8 @@ se.pchic.gr<-with(merge.results.se,GRanges(seqnames=Rle(se.gr.seqnames),
 manta.loss.merge<-data.table(as.data.frame(mergeByOverlaps(pid.manta.gr,se.pchic.gr)))
 canvas.loss.merge<-data.table(as.data.frame(mergeByOverlaps(pid.canvas.gr,se.pchic.gr)))
 ## are any of these homozygous deletions if so which ?
-table(manta.loss.merge$id %in% manta.gt.idx[['1/1']])
-table(canvas.loss.merge$id %in% canvas.gt.idx[['1/1']])
+table(manta.loss.merge$uid %in% manta.gt.idx[['1/1']])
+table(canvas.loss.merge$uid %in% canvas.gt.idx[['1/1']])
 ## answer is no none of PID deletions that overlap super enhancer regions are homs
 ## which individuals have a deletion that takes out SE of a gene
 manta.uid<-manta.loss.merge[grep(1,manta.loss.merge$p.known.pid),]$pid.manta.gr.id
@@ -78,15 +78,16 @@ unique.has.genes<-getGIndTab(manta.loss.has.gene,pid.cnv)
 all.genes<-rbind(unique.no.genes,unique.has.genes)
 all.genes$SE.only<-FALSE
 all.genes[1:nrow(unique.no.genes),]$SE.only<-TRUE
+all.pid.genes<-subset(all.genes,p.known.pid==1)
 ## doesn't look as if there are two hits on the same gene one taking out coding and the other taking out enhancer
-sapply(split(all.genes$SE.only,all.genes$k),length)
+sapply(split(all.pid.genes$SE.only,all.pid.genes$k),length)
 ## however to do this properly will need to get the annotations for which exons overlap rather than relying on the SE data above 
 ## as this could be a long way removed from the gene !
 
 ## TODO get the genes annotated in the CNV file and repeat the above analysis
 
 ## do any of the subjects have insults to two pid genes ?
-sapply(split(all.genes$p.ensg,all.genes$sample),length)
+sapply(split(all.pid.genes$p.ensg,all.pid.genes$sample),length)
 ## some have 7 genes ! Probable artifact
 ## need to check these individuals to see if there is evidence for rare/common SNV in these genes that mean that gene is knocked out.
 
@@ -113,14 +114,14 @@ sapply(split(all.genes$p.ensg,all.genes$sample),length)
 #setkey(all.pid.genes,p.ensg)
 
 #out.tab<-all.pid.genes[baits.coord]
-out.tab<-all.genes
+out.tab<-all.pid.genes
 setkey(out.tab,k)
 out.tab<-unique(out.tab)
 #out.tab<-out.tab[order(baitChr,baitStart_ori,sample),]
 out.tab<-out.tab[order(se.pchic.gr.seqnames,se.pchic.gr.start,sample),]
 xtable(out.tab[,c('p.genenames','sample','SE.only','se.pchic.gr.seqnames','se.pchic.gr.start','se.pchic.gr.end'),with=FALSE])
 ## TOMORROW NEED TO COMPUTE THE OVERLAP BETWEEN se region and the deletion and add this to the file.
-save(out.tab,file="/scratch/ob219/pid/loss_merge_genes/all.se.RData")
+#save(out.tab,file="/scratch/ob219/pid/loss_merge_genes/pid.se.RData")
 stop()
 ## do for others
 ## this code gets where the bait is - it's a bit slow and I think we can do better

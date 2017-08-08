@@ -35,7 +35,7 @@ pchic.cutoff<-5
 pchic<-fread(file.path(data.dir,"merged_samples_12Apr2015_full_denorm_bait2baits_e75.tab"))
 pchic.f<-subset(pchic,biotype=='protein_coding')
 library(reshape2)
-pchicm<-data.table::melt(pchic,id.vars=c('ensg','name','baitID','oeID','oeChr','oeStart','oeEnd'),measure.vars=names(pchic.f)[16:32])
+pchicm<-data.table::melt(pchic.f,id.vars=c('ensg','name','baitID','oeID','oeChr','oeStart','oeEnd'),measure.vars=names(pchic.f)[16:32])
 
 ## annotate with whether overlaps a superenhancer
 

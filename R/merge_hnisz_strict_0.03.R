@@ -7,7 +7,7 @@ id.file<-fread(file.path(data.dir,'BRIDGE-PID_20161012release_846_index_cases.cs
 setnames(id.file,make.names(names(id.file)))
 
 ## we use Olga's latest CNV calls 
-cnv<-fread("/scratch/WGS10K/data/WGS10K/us/SV-processing-V2all-upgrades/output/output_files/20170104/for_release/dels_strict/deletions.strict.allsamples.dedup.ann.filt.0.001.txt")
+cnv<-fread("/scratch/WGS10K/data/WGS10K/us/SV-processing-V2all-upgrades/output/output_files/20170104/for_release/dels_strict/deletions.strict.allsamples.dedup.ann.filt.0.03.txt")
 
 ## filter to just contain the PID patients
 
@@ -120,7 +120,7 @@ out.tab<-unique(out.tab)
 out.tab<-out.tab[order(se.pchic.gr.seqnames,se.pchic.gr.start,sample),]
 xtable(out.tab[,c('p.genenames','sample','SE.only','se.pchic.gr.seqnames','se.pchic.gr.start','se.pchic.gr.end'),with=FALSE])
 ## TOMORROW NEED TO COMPUTE THE OVERLAP BETWEEN se region and the deletion and add this to the file.
-save(out.tab,file="/scratch/ob219/pid/loss_merge_genes/all.se.RData")
+save(out.tab,file="/scratch/ob219/pid/loss_merge_genes/all.se.0.03.RData")
 stop()
 ## do for others
 ## this code gets where the bait is - it's a bit slow and I think we can do better

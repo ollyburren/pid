@@ -216,9 +216,11 @@ getShortReport<-function(g){
 }
 
 
-sres<-lapply(head(all.v.genes,n=1000),function(ge){
+sres<-lapply(all.v.genes,function(ge){
   message(ge)
   getShortReport(ge)
 })
 
 all.sres<-rbindlist(sres[!is.na(sres)])
+
+saveRDS(all.sres,file='/home/ob219/scratch/pid/ANNOTATIONS/lof_snps.RDS')
