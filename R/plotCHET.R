@@ -12,12 +12,15 @@ library(magrittr)
 # connect to biomart
 e75.genemart <- useMart(biomart="ENSEMBL_MART_ENSEMBL",  host="feb2014.archive.ensembl.org", path="/biomart/martservice", dataset="hsapiens_gene_ensembl")
 
-## here is the merged Hnisz et al. data - currently missing CD20 data (needs to be added)
+## hnisz
 load('/Users/oliver/hpc_scratch/pid/hnisz_SE_annotation_all_merged.RData')
 ## make a handy object so we can compute overlaps
 se.gr<-with(merge.results.se,GRanges(seqnames=Rle(paste0('chr',se.gr.seqnames)),ranges=IRanges(start=se.gr.start,end=se.gr.end),uid=uid))
 
-tracks<-list()
+## load in super enhancer data from blue print
+## make a handy object so we can compute overlaps
+se.bp.gr<-readRDS('/Users/oliver/hpc_scratch/pid/bp_se.RDS')
+seqlevels(se.bp.gr)<-paste0('chr',seqlevels(se.bp.gr))
 
 ## read in the interaction data and generate helper objects
 hic<-fread("/Users/oliver/hpc_scratch/DATA/JAVIERRE_GWAS/chic/merged_samples_12Apr2015_full_denorm_bait2baits_e75.tab")
@@ -33,7 +36,7 @@ getInteraction<-function(gr){
     b.gr<-with(fhic,GRanges(seqnames=Rle(paste0('chr',baitChr)), IRanges(start=baitStart, end=baitEnd)))
     o.gr<-with(fhic,GRanges(seqnames=Rle(paste0('chr',oeChr)), IRanges(start=oeStart, end=oeEnd)))
     GenomicInteractions(b.gr, o.gr, counts=1)
-    
+
 }
 
 
@@ -50,9 +53,20 @@ getGenes<-function(interaction){
         stackHeight=0.2, filters=list(with_ox_refseq_mrna=T,ensembl_gene_id=genesToGet))
 }
 
-getSE<-function(interaction){
+getSE<-function(interaction,gr){
     pir.gr<-anchorTwo(interaction)
-    subsetByOverlaps(se.gr,pir.gr)
+    subsetByOverlaps(gr,pir.gr)
+}
+
+library(jsonlite)
+library(httr)
+ensg2symbol<-function(ensg){
+  server <- "https://rest.ensembl.org"
+  ext <- sprintf("/xrefs/id/%s?",ensg)
+  request<-GET(paste(server, ext, sep = ""), content_type("application/json"))
+  stop_for_status(request)
+  jd<-fromJSON(toJSON(content(request)))
+  unlist(subset(jd,dbname=='HGNC')[['display_id']])
 }
 
 
@@ -60,8 +74,17 @@ plotter<-function(s.gr){
     tracks<-list()
     interaction<-getInteraction(s.gr)
     genes<-getGenes(interaction)
-    se<-getSE(interaction)
-    if(nrow(as.matrix(findOverlaps(s.gr,se))) ==0){
+    se.bp<-getSE(interaction,se.bp.gr)
+    se.hnisz<-getSE(interaction,se.gr)
+    ## all se
+    if(length(se.bp)!=0 & length(se.hnisz)!=0){
+      all.se<-c(se.bp,se.hnisz)
+    }else if (length(se.bp)==0 & length(se.hnisz)!=0){
+      all.se <- se.hnisz
+    }else if (length(se.bp)!=0 & length(se.hnisz)==0){
+      all.se <- se.bp
+    }
+    if(nrow(as.matrix(findOverlaps(s.gr,all.se))) ==0){
         sv<-AnnotationTrack(s.gr,name='SV',id=s.gr$individual,featureAnnotation="id",fontcolor.feature = "black",cex.feature=0.7)
     }else{
         sv<-AnnotationTrack(s.gr,name='SV',id=s.gr$individual,featureAnnotation="id",fontcolor.feature = "black",cex.feature=0.7,fill='red',col='red')
@@ -82,11 +105,10 @@ plotter<-function(s.gr){
     tracks$sv<-sv
     ## super enhancers
     ## get the sample types
-    seLabels<-sub("([^:]+):.*","\\1",se$uid)
-    tracks$se<-AnnotationTrack(name='SE',se,id=seLabels, fontcolor.feature = "darkblue",
-                               featureAnnotation="id", cex.feature = 0.7)
-    paste(s.gr$ensg,s.gr$individual,sep=' ')
-    plotTracks(tracks,main=paste(s.gr$ensg,s.gr$individual,sep=' '))
+    seLabels<-sub("([^:]+):.*","\\1",se.hnisz$uid)
+    tracks$se_hnisz<-AnnotationTrack(name='SE Hnisz',se.hnisz,id=seLabels, fontcolor.feature = "darkblue",featureAnnotation="id", cex.feature = 0.7)
+    tracks$se_bp<-AnnotationTrack(name='SE BP',se.bp,id=se.bp$uid, fontcolor.feature = "black",fill='orange',featureAnnotation="id", cex.feature = 0.7)
+    plotTracks(tracks,main=paste(ensg2symbol(s.gr$ensg),s.gr$individual,sep=' '))
 }
 
 ## can we plot for all ?
@@ -95,12 +117,15 @@ all.pse.chets<-fread('/Users/oliver/hpc_scratch/pid/RESULTS/possible_CHET.csv')
 all.pse.chets<-subset(all.pse.chets,!is.na(sv.chr))
 setkey(all.pse.chets,individual)
 all.pse.chets<-unique(all.pse.chets)
-## ok create the correct things 
+## ok create the correct things
 pse.gr<-with(all.pse.chets,GRanges(seqnames=Rle(paste0('chr',sv.chr)),ranges=IRanges(start=sv.start,end=sv.end),ensg=target.gene,individual=individual))
+
+## little function to convert ensg to gene symbol
+
 
 
 pdf("~/tmp/priorGenes.pdf")
 for(i in 1:length(pse.gr)){
-    plotter(pse.gr[i,])   
+    plotter(pse.gr[i,])
 }
 dev.off()
