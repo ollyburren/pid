@@ -16,11 +16,16 @@ These are R scripts that extract PID data without a molecular diagnosis
 1. shallow_overlap.R - Takes the RDS objects above and integrates them. It does this by finding genes that are interesting by promoter,exon or pchic,se overlap and then interrogating the protein coding space for individuals wotjh co-occurring rare variants in that gene (operates on the HPC using bcftools).
 2. central_functions.R - Deprecated.
 3. findPoss.R - This script generates the lists that we sent around.
-4. parselofVCF.R - Rscript that Filters a gene for lof variants.                                                                                                                                                                                                             
+4. parselofVCF.R - Rscript that Filters a gene for lof variants.       
 
-## assignment of SE calls to PCHiC tissues
+## compile
 
-|    | Javierre Cell Type     | Super Enhancer Cell Type assignment                                                     |
+1. annotateCandidates.R - Script combines all the annotations and retrieves all information about possible compound het
+2. plotCHET.R - Gviz visualisation of prioritised CHETs                                                                                                                                                                                                  
+
+## assignment of SE from Blueprint calls to PCHiC tissues
+
+|    | Javierre Cell Type     | Super Enhancer Cell Type assignment filename                                                     |
 |---:|------------------------|-----------------------------------------------------------------------------------------|
 |  1 | Monocytes              | Peaks.Monocytes_merged_1e-5_broad_peaks.SuperEnhancers.bed                              |
 |  2 | Macrophages_M0         | Peaks.Macrophage_merged_1e-5_broad_peaks.SuperEnhancers.bed                             |

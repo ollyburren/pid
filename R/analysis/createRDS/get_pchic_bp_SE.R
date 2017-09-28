@@ -59,7 +59,7 @@ pchicm<-data.table::melt(pchic.f,id.vars=c('ensg','name','baitID','oeID','oeChr'
 pchicm<-subset(pchicm,value>CHIC.THRESH)
 
 ## annotate with whether overlaps a superenhancer
-p.grl<-with(unique(pchicm,by=c('oeID','variable')),GRanges(seqnames=Rle(oeChr),ranges=IRanges(start=oeStart,oeEnd),baitID=baitID,oeID=oeID,ct=variable,ensg=ensg,gname=name,pchic.score=value)) %>% split(.,.$ct)
+p.grl<-with(unique(pchicm,by=c('seName','variable')),GRanges(seqnames=Rle(oeChr),ranges=IRanges(start=oeStart,oeEnd),baitID=baitID,oeID=oeID,ct=variable,ensg=ensg,gname=name,pchic.score=value)) %>% split(.,.$ct)
 
 library(rtracklayer)
 pchse<-lapply(seq_along(desc),function(i){
@@ -74,6 +74,12 @@ pchse<-lapply(seq_along(desc),function(i){
 })
 
 pchse<-rbindlist(pchse)
+
+## useful for plotting at a later stage
+
+se.gr<-with(unique(pchse,by=c('seName','pchicTissue')),GRanges(seqnames=Rle(seChr),ranges=IRanges(start=seStart,end=seEnd),uid=pchicTissue))
+saveRDS(se.gr,file='/scratch/ob219/pid/bp_se.RDS')
+
 
 res<-data.table::dcast(pchse,pchicChr+pchicStart+pchicEnd+ensg+name+baitID+oeID~pchicTissue)
 res$variable<-'match'
