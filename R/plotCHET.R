@@ -113,7 +113,7 @@ plotter<-function(s.gr){
 
 ## can we plot for all ?
 
-all.pse.chets<-fread('/Users/oliver/hpc_scratch/pid/RESULTS/possible_CHET.csv')
+all.pse.chets<-fread('/Users/oliver/hpc_scratch/pid/RESULTS/PIK3C2B.csv')
 all.pse.chets<-subset(all.pse.chets,!is.na(sv.chr))
 setkey(all.pse.chets,individual)
 all.pse.chets<-unique(all.pse.chets)
@@ -123,8 +123,8 @@ pse.gr<-with(all.pse.chets,GRanges(seqnames=Rle(paste0('chr',sv.chr)),ranges=IRa
 ## little function to convert ensg to gene symbol
 
 
-
-pdf("~/tmp/priorGenes.pdf")
+pdf("~/tmp/PIK3C2B.pdf")
+#pdf("~/tmp/priorGenes.pdf")
 for(i in 1:length(pse.gr)){
     plotter(pse.gr[i,])
 }
