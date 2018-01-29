@@ -81,7 +81,9 @@ approx.bf.p <- function(p,f, N, s,pi_i,type='CC') {
 
 ## load in reference allele freq
 (load("/home/ob219/scratch/as_basis/1KG_support/all_EUR_support.RData"))
+options(scipen=999)
 all.eur[,pid:=paste(chr,position,sep=':')]
+option(scipen=0)
 setkey(all.eur,pid)
 all.eur[,maf:=a2.f]
 all.eur[maf>0.5,maf:=1-maf]
